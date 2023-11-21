@@ -1,0 +1,8 @@
+mysql:
+  host: localhost
+  port: 3306
+  username: root
+  password: 123456
+  dbname: chatbot
+openai:
+  apikey: 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

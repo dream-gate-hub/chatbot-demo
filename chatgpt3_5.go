@@ -42,7 +42,7 @@ func ChatWithGPT3_5(chatBotSystemPrompt string, msgReq MessagesRequest) (string,
 
 	// 获取环境变量中的API密钥
 	//apiKey := os.Getenv("OPENAI_API_KEY")
-	apiKey := "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"
+	//apiKey := "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"
 
 	// 构建请求体
 	var chatGPTReqMsg = []map[string]string{
@@ -74,7 +74,7 @@ func ChatWithGPT3_5(chatBotSystemPrompt string, msgReq MessagesRequest) (string,
 
 	// 设置请求头部
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Authorization", "Bearer "+AllConfig.Openai.Apikey)
 
 	// 发送请求
 	client := &http.Client{}
