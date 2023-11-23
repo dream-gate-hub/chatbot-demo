@@ -1,32 +1,36 @@
-package main
+package db
 
 import (
+	"chatbot/model"
 	"fmt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
-func initMysql(user, password, host, port, dbname string) (*gorm.DB, error) {
+var DBInstance *gorm.DB
+
+func InitMysql(user, password, host, port, dbname string) error {
+	var err error
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, password, host, port, dbname)
 	//dsn := "root:123456@tcp(127.0.0.1:3306)/mytestdb?charset=utf8mb4&parseTime=True&loc=Local"
 	dialector := mysql.Open(dsn)
-	db, err := gorm.Open(dialector, &gorm.Config{})
+	DBInstance, err = gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return db, nil
+	return nil
 }
 
-func CreateCharacter(db *gorm.DB, character *Character) error {
-	newDB := db.Session(&gorm.Session{})
+func CreateCharacter(character *model.Character) error {
+	newDB := DBInstance.Session(&gorm.Session{}).Table("characters")
 	return newDB.Create(character).Error
 }
 
 // 通过 ID 查询
-func GetCharacterByID(db *gorm.DB, cid uint) (*Character, error) {
-	var character Character
+func GetCharacterByID(cid uint) (*model.Character, error) {
+	var character model.Character
 
-	newDB := db.Session(&gorm.Session{})
+	newDB := DBInstance.Session(&gorm.Session{}).Table("characters")
 	err := newDB.Where("character_id = ?", cid).First(&character).Error
 
 	//err := db.Raw("SELECT * FROM characters WHERE character_id = ?", cid).Scan(&character).Error
@@ -37,15 +41,15 @@ func GetCharacterByID(db *gorm.DB, cid uint) (*Character, error) {
 }
 
 // 查询所有记录
-func GetAllCharacters(db *gorm.DB) ([]Character, error) {
-	var characters []Character
+func GetAllCharacters() ([]model.Character, error) {
+	var characters []model.Character
 
 	//err := db.Raw("SELECT * FROM characters").Scan(&characters).Error
 	//if err != nil {
 	//	return nil, err
 	//}
 
-	newDB := db.Session(&gorm.Session{})
+	newDB := DBInstance.Session(&gorm.Session{}).Table("characters")
 	err := newDB.Find(&characters).Error
 
 	//newLogger := logger.New(
@@ -64,13 +68,13 @@ func GetAllCharacters(db *gorm.DB) ([]Character, error) {
 }
 
 // 更新character，若没有对应的character，则新增
-func UpdateCharacter(db *gorm.DB, character *Character) error {
-	newDB := db.Session(&gorm.Session{})
+func UpdateCharacter(character *model.Character) error {
+	newDB := DBInstance.Session(&gorm.Session{}).Table("characters")
 	return newDB.Save(character).Error
 }
 
 // 根据character_id删除一条记录，如果character_id不存在也不会返回错误
-func DeleteCharacter(db *gorm.DB, cid uint) error {
-	newDB := db.Session(&gorm.Session{})
-	return newDB.Where("character_id = ?", cid).Delete(&Character{}).Error
+func DeleteCharacter(cid uint) error {
+	newDB := DBInstance.Session(&gorm.Session{}).Table("characters")
+	return newDB.Where("character_id = ?", cid).Delete(&model.Character{}).Error
 }

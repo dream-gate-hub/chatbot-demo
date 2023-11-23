@@ -17,9 +17,14 @@ type Config struct {
 	Openai struct {
 		Apikey string
 	}
+	RoleSetting struct {
+		MaxTextLength int
+	}
 }
 
-func GetAllConfig() *Config {
+var ConfigInstance *Config
+
+func InitConfig() {
 	viper.SetConfigName("config")                   // 配置文件名称（无扩展名）
 	viper.SetConfigType("yaml")                     // 配置文件类型
 	viper.AddConfigPath(getCurrentAbPathByCaller()) // 查找配置文件的路径
@@ -28,16 +33,19 @@ func GetAllConfig() *Config {
 		panic(err)
 	}
 
-	var c Config
-	c.Mysql.Host = viper.GetString("mysql.host")
-	c.Mysql.Port = viper.GetString("mysql.port")
-	c.Mysql.Username = viper.GetString("mysql.username")
-	c.Mysql.Password = viper.GetString("mysql.password")
-	c.Mysql.DBname = viper.GetString("mysql.dbname")
+	ConfigInstance.Mysql.Host = viper.GetString("mysql.host")
+	ConfigInstance.Mysql.Port = viper.GetString("mysql.port")
+	ConfigInstance.Mysql.Username = viper.GetString("mysql.username")
+	ConfigInstance.Mysql.Password = viper.GetString("mysql.password")
+	ConfigInstance.Mysql.DBname = viper.GetString("mysql.dbname")
 
-	c.Openai.Apikey = viper.GetString("openai.apikey")
+	ConfigInstance.Openai.Apikey = viper.GetString("openai.apikey")
 
-	return &c
+	ConfigInstance.RoleSetting.MaxTextLength = viper.GetInt("role_setting.max_text_length")
+}
+
+func GetConfigInstance() *Config {
+	return ConfigInstance
 }
 
 func getCurrentAbPathByCaller() string {

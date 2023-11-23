@@ -1,7 +1,8 @@
-package main
+package chatgpt
 
 import (
 	"bytes"
+	"chatbot/config"
 	"encoding/json"
 	"errors"
 	"io"
@@ -74,7 +75,7 @@ func ChatWithGPT3_5(chatBotSystemPrompt string, msgReq MessagesRequest) (string,
 
 	// 设置请求头部
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+AllConfig.Openai.Apikey)
+	req.Header.Set("Authorization", "Bearer "+config.GetConfigInstance().Openai.Apikey)
 
 	// 发送请求
 	client := &http.Client{}

@@ -1,19 +1,29 @@
-package main
+package routes
 
 import (
+	"chatbot/chatgpt"
+	"chatbot/config"
+	"chatbot/db"
+	"chatbot/model"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
 )
 
-type Character struct {
-	CharacterID      uint   `json:"character_id" gorm:"column:character_id;primaryKey;autoIncrement"`
-	Nickname         string `json:"nickname" gorm:"column:nickname;size:255"`
-	Gender           string `json:"gender" gorm:"column:gender;type:enum('man', 'woman', 'other')"`
-	CharacterSetting string `json:"character_setting" gorm:"column:character_setting;type:text"`
-	Prologue         string `json:"prologue,omitempty" gorm:"column:prologue;type:text"` // 开场白
-	DialogueExamples string `json:"dialogue_examples,omitempty" gorm:"column:dialogue_examples;type:text"`
+func InitRouter() *gin.Engine {
+	r := gin.Default()
+	r.GET("/", IndexHandler)
+	//r.POST("/create_character", CreateCharacterHandler)
+	characterRouterGroup := r.Group("/characters")
+	characterRouterGroup.GET("/all", GetAllCharacterInfoHandler) // 获取全部角色信息
+	characterRouterGroup.POST("/create", CreateCharacterHandler) // 创建角色
+	characterRouterGroup.DELETE("/:cid", DeleteCharacterHandler) // 删除角色
+	characterRouterGroup.PUT("/:cid", UpdateCharacterHandler)    // 更新角色
+	characterRouterGroup.GET("/:cid", GetCharacterInfoHandler)   // 获取角色信息
+	characterRouterGroup.POST("/chat/:cid", ChatHandler)         // 与角色聊天
+
+	return r
 }
 
 // 首页
@@ -23,7 +33,7 @@ func IndexHandler(c *gin.Context) {
 
 // 获取全部角色信息
 func GetAllCharacterInfoHandler(c *gin.Context) {
-	characters, err := GetAllCharacters(TableCharactersHandler)
+	characters, err := db.GetAllCharacters()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error", "error": err.Error()})
 		return
@@ -36,21 +46,21 @@ func GetAllCharacterInfoHandler(c *gin.Context) {
 // 创建角色
 func CreateCharacterHandler(c *gin.Context) {
 	//
-	var character Character
+	var character model.Character
 	err := c.ShouldBind(&character)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, fmt.Sprintf("request err: %s", err.Error()))
 		return
 	}
 
-	if !isLegalCharacterForCreate(character) {
+	if !isLegalCharacterForCreate(&character) {
 		fmt.Println(character)
 		c.JSON(http.StatusBadRequest, "Illegal request data")
 		return
 	}
 
 	character.CharacterID = 0 // 确保使用数据库的自增ID
-	err = CreateCharacter(TableCharactersHandler, &character)
+	err = db.CreateCharacter(&character)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error", "error": err.Error()})
 		return
@@ -75,7 +85,7 @@ func DeleteCharacterHandler(c *gin.Context) {
 	//	return
 	//}
 
-	err = DeleteCharacter(TableCharactersHandler, uint(cid))
+	err = db.DeleteCharacter(uint(cid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -95,27 +105,27 @@ func UpdateCharacterHandler(c *gin.Context) {
 	}
 
 	// 查cid是否存在，如果不存在，返回错误
-	_, err = GetCharacterByID(TableCharactersHandler, uint(cid))
+	_, err = db.GetCharacterByID(uint(cid))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	var character Character
+	var character model.Character
 	err = c.ShouldBind(&character)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, fmt.Sprintf("request err: %s", err.Error()))
 		return
 	}
 
-	if !isLegalCharacterForCreate(character) {
+	if !isLegalCharacterForCreate(&character) {
 		c.JSON(http.StatusBadRequest, "Illegal request data")
 		return
 	}
 
 	character.CharacterID = uint(cid)
 
-	err = UpdateCharacter(TableCharactersHandler, &character)
+	err = db.UpdateCharacter(&character)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -134,7 +144,7 @@ func GetCharacterInfoHandler(c *gin.Context) {
 		return
 	}
 
-	character, err := GetCharacterByID(TableCharactersHandler, uint(cid))
+	character, err := db.GetCharacterByID(uint(cid))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -154,13 +164,13 @@ func ChatHandler(c *gin.Context) {
 		return
 	}
 
-	character, err := GetCharacterByID(TableCharactersHandler, uint(cid))
+	character, err := db.GetCharacterByID(uint(cid))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	var chatReq MessagesRequest
+	var chatReq chatgpt.MessagesRequest
 	err = c.ShouldBind(&chatReq)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -169,7 +179,7 @@ func ChatHandler(c *gin.Context) {
 
 	systemPrompt := OrganizeSystemPrompt(character)
 
-	resp, err := ChatWithGPT3_5(systemPrompt, chatReq)
+	resp, err := chatgpt.ChatWithGPT3_5(systemPrompt, chatReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -181,15 +191,25 @@ func ChatHandler(c *gin.Context) {
 
 // 用于在创建和更新角色的时候检查角色是否合法
 // 后面这里可以做例如敏感名称过滤等
-func isLegalCharacterForCreate(character Character) bool {
+func isLegalCharacterForCreate(character *model.Character) bool {
 	if len(character.Gender) == 0 || len(character.Nickname) == 0 || len(character.CharacterSetting) == 0 {
+		return false
+	}
+
+	if len(character.Nickname) > 255*4 { // utf8mb4 nickname的mysql字段类型是VARCHAR(255)
+		return false
+	}
+
+	if len(character.CharacterSetting) > config.GetConfigInstance().RoleSetting.MaxTextLength ||
+		len(character.Prologue) > config.GetConfigInstance().RoleSetting.MaxTextLength ||
+		len(character.DialogueExamples) > config.GetConfigInstance().RoleSetting.MaxTextLength {
 		return false
 	}
 
 	return true
 }
 
-func OrganizeSystemPrompt(character *Character) string {
+func OrganizeSystemPrompt(character *model.Character) string {
 	return fmt.Sprintf(`
 [Your name]
 %s

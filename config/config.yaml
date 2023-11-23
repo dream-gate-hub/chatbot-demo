@@ -6,3 +6,5 @@ mysql:
   dbname: chatbot
 openai:
   apikey: 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
+role_setting:
+  max_text_length: 2000 #  CharacterSetting \ Prologue \ DialogueExamples 均不超过 2000 bytes
